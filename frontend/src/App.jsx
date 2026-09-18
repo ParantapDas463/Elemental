@@ -824,7 +824,7 @@ function Analytics() {
 
   const mineralDonutRef = useRef(null)
   const [mineralDonutProgress, setMineralDonutProgress] =
-    useState(0)
+    useState(1)
 
   useEffect(() => {
     loadAnalytics()
@@ -1107,10 +1107,42 @@ function Analytics() {
   const patentCount = patents.length
   const projectCount = projects.length
 
-  const patentMineralData = countByName(
+  const patentMineralCounts = countByName(
     patentMinerals,
     'minerals'
   )
+
+  // Group minerals contributing less than 1.5% of total patent
+  // activity into a single "Others" slice.
+  const patentMineralTotal = patentMineralCounts.reduce(
+    (sum, item) => sum + Number(item.count || 0),
+    0
+  )
+
+  const patentMineralMajor = patentMineralCounts.filter(
+    (item) =>
+      patentMineralTotal > 0 &&
+      Number(item.count || 0) / patentMineralTotal >= 0.015
+  )
+
+  const patentMineralOthersCount = patentMineralCounts
+    .filter(
+      (item) =>
+        patentMineralTotal > 0 &&
+        Number(item.count || 0) / patentMineralTotal < 0.015
+    )
+    .reduce((sum, item) => sum + Number(item.count || 0), 0)
+
+  const patentMineralData =
+    patentMineralOthersCount > 0
+      ? [
+          ...patentMineralMajor,
+          {
+            name: 'Others',
+            count: patentMineralOthersCount,
+          },
+        ]
+      : patentMineralMajor
 
   const projectMineralData = countByName(
     projectMinerals,
@@ -1827,7 +1859,7 @@ function Analytics() {
           <div className="analytics-large-chart mineral-donut-wrap">
             <ResponsiveContainer
               width="100%"
-              height={430}
+              height={500}
             >
               <PieChart>
                 <Pie
@@ -1845,7 +1877,7 @@ function Analytics() {
                 />
 
                 <Pie
-                  data={patentMineralData.slice(0, 12)}
+                  data={patentMineralData}
                   dataKey="count"
                   nameKey="name"
                   cx="50%"
@@ -1853,23 +1885,149 @@ function Analytics() {
                   outerRadius={145}
                   innerRadius={78}
                   startAngle={90}
-                  endAngle={
-                    90 - 360 * mineralDonutProgress
-                  }
+                  endAngle={-270}
                   paddingAngle={0}
                   stroke="none"
                   isAnimationActive={false}
                   label={
                     mineralDonutProgress > 0.7
-                      ? ({ name, percent }) =>
-                          `${name} ${(percent * 100).toFixed(1)}%`
+                      ? ({ name, percent, cx, cy, midAngle, outerRadius, index }) => {
+                          const angle = -midAngle * (Math.PI / 180)
+                          const direction = Math.cos(angle) >= 0 ? 1 : -1
+
+                          // First point touches the actual donut slice.
+                          const anchorX =
+                            cx + outerRadius * Math.cos(angle)
+                          const anchorY =
+                            cy + outerRadius * Math.sin(angle)
+
+                          // Use the empty lower area to distribute labels instead
+                          // of forcing several upper-left labels into the same space.
+                          const totalValue = patentMineralData.reduce(
+                            (sum, item) => sum + Number(item.count || 0),
+                            0
+                          )
+
+                          let cumulative = 0
+                          const sideIndices = []
+
+                          patentMineralData.forEach((item, itemIndex) => {
+                            const value = Number(item.count || 0)
+                            const sliceAngle =
+                              totalValue > 0
+                                ? (value / totalValue) * 360
+                                : 0
+                            const itemMidAngle =
+                              90 - cumulative - sliceAngle / 2
+                            const itemAngle =
+                              -itemMidAngle * (Math.PI / 180)
+                            const itemDirection =
+                              Math.cos(itemAngle) >= 0 ? 1 : -1
+
+                            if (itemDirection === direction) {
+                              sideIndices.push(itemIndex)
+                            }
+
+                            cumulative += sliceAngle
+                          })
+
+                          // Keep every label vertically aligned with the slice it
+                          // actually belongs to.  The previous data-order ranking
+                          // could connect a lower label to an upper slice (and vice
+                          // versa).  Rank slices by their real Y position instead.
+                          const rankedSideIndices = sideIndices.sort((a, b) => {
+                            const getAnchorY = (itemIndex) => {
+                              let running = 0
+                              for (let i = 0; i < itemIndex; i += 1) {
+                                const value = Number(
+                                  patentMineralData[i]?.count || 0
+                                )
+                                running +=
+                                  totalValue > 0
+                                    ? (value / totalValue) * 360
+                                    : 0
+                              }
+
+                              const value = Number(
+                                patentMineralData[itemIndex]?.count || 0
+                              )
+                              const sliceAngle =
+                                totalValue > 0
+                                  ? (value / totalValue) * 360
+                                  : 0
+                              const itemMidAngle =
+                                90 - running - sliceAngle / 2
+                              const itemAngle =
+                                -itemMidAngle * (Math.PI / 180)
+
+                              return cy + outerRadius * Math.sin(itemAngle)
+                            }
+
+                            return getAnchorY(a) - getAnchorY(b)
+                          })
+
+                          const sideRank = Math.max(
+                            0,
+                            rankedSideIndices.indexOf(index)
+                          )
+                          const sideCount = Math.max(1, rankedSideIndices.length)
+                          const top = cy - 220
+                          const bottom = cy + 220
+                          const targetY =
+                            sideCount === 1
+                              ? cy
+                              : top +
+                                (sideRank / (sideCount - 1)) *
+                                  (bottom - top)
+
+                          // Give a couple of crowded upper-left labels access to
+                          // the open space on the upper-right.  Route those lines
+                          // above the donut so they never cut through the slices.
+                          // Keep every label on the same side as its actual slice.
+                          // Upper-left labels stay on the LEFT.
+                          const labelDirection = direction
+                                                  
+                          const bendX =
+                            cx + labelDirection * 178
+                                                  
+                          const lineEndX =
+                            cx + labelDirection * 275
+                                                  
+                          const textX =
+                            lineEndX + labelDirection * 10
+                                                  
+                          const points =
+                            `${anchorX},${anchorY} ${bendX},${targetY} ${lineEndX},${targetY}`
+                                                  
+                          const finalTextY = targetY
+
+                          return (
+                            <g>
+                              <polyline
+                                points={points}
+                                fill="none"
+                                stroke="rgba(232, 237, 245, 0.45)"
+                                strokeWidth={1}
+                              />
+                              <text
+                                x={textX}
+                                y={finalTextY}
+                                textAnchor={labelDirection === 1 ? 'start' : 'end'}
+                                dominantBaseline="middle"
+                                fill="#e8edf5"
+                                fontSize={11}
+                                fontWeight={500}
+                              >
+                                {`${name} ${(percent * 100).toFixed(1)}%`}
+                              </text>
+                            </g>
+                          )
+                        }
                       : false
                   }
                   labelLine={false}
                 >
-                  {patentMineralData
-                    .slice(0, 12)
-                    .map((entry, index) => (
+                  {patentMineralData.map((entry, index) => (
                       <Cell
                         key={`mineral-pie-${entry.name}`}
                         fill={[
@@ -1898,7 +2056,6 @@ function Analytics() {
                   ]}
                 />
 
-                <Legend />
               </PieChart>
             </ResponsiveContainer>
           </div>
