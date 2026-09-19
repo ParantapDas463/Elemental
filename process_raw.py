@@ -1,27 +1,59 @@
 import json
+import sys
 from pathlib import Path
 
 from parsers.ipindia_parser import IPIndiaParser
 
 
-RAW_DIR = Path("data/raw/patents")
+RAW_BASE_DIR = Path("data/raw/patents")
 OUTPUT_DIR = Path("data/processed")
-OUTPUT_FILE = OUTPUT_DIR / "ipindia_patents.json"
 
 
 def main():
+    # ---------------------------------------------------------
+    # Dataset selection
+    # ---------------------------------------------------------
+
+    if len(sys.argv) < 2:
+        print("Usage:")
+        print("  python process_raw.py <dataset>")
+        print()
+        print("Examples:")
+        print("  python process_raw.py cobalt")
+        print("  python process_raw.py lithium")
+        return
+
+    dataset_name = sys.argv[1].strip().lower()
+
+    # ---------------------------------------------------------
+    # Paths
+    # ---------------------------------------------------------
+
+    dataset_dir = RAW_BASE_DIR / dataset_name
+    output_file = OUTPUT_DIR / f"{dataset_name}_patents.json"
+
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
-    html_files = sorted(RAW_DIR.glob("*.html"))
+    if not dataset_dir.exists():
+        print(f"No raw patent directory found for: {dataset_name}")
+        print(f"Expected: {dataset_dir}")
+        return
+
+    html_files = sorted(dataset_dir.glob("*.html"))
 
     if not html_files:
-        print("No raw patent HTML files found.")
+        print(f"No raw patent HTML files found in: {dataset_dir}")
         return
+
+    # ---------------------------------------------------------
+    # Processing
+    # ---------------------------------------------------------
 
     print("=" * 70)
     print("IP INDIA RAW → JSON PROCESSOR")
     print("=" * 70)
-    print(f"Raw files found: {len(html_files)}")
+    print(f"Dataset         : {dataset_name}")
+    print(f"Raw files found : {len(html_files)}")
     print()
 
     patents = []
@@ -45,7 +77,9 @@ def main():
 
             # Keep track of where this record came from.
             patent["source"] = "IP India"
-            patent["raw_file"] = html_file.name
+            patent["raw_file"] = str(
+                html_file.relative_to(RAW_BASE_DIR)
+            )
 
             patents.append(patent)
 
@@ -53,7 +87,9 @@ def main():
             print(f"  ERROR: {e}")
 
             failures.append({
-                "file": html_file.name,
+                "file": str(
+                    html_file.relative_to(RAW_BASE_DIR)
+                ),
                 "error": str(e)
             })
 
@@ -82,13 +118,14 @@ def main():
 
     output = {
         "source": "IP India",
+        "dataset": dataset_name,
         "record_count": len(unique_patents),
         "failed_count": len(failures),
         "patents": unique_patents,
         "failures": failures
     }
 
-    OUTPUT_FILE.write_text(
+    output_file.write_text(
         json.dumps(
             output,
             indent=2,
@@ -106,12 +143,13 @@ def main():
     print("PROCESSING COMPLETE")
     print("=" * 70)
 
+    print(f"Dataset        : {dataset_name}")
     print(f"Raw HTML files : {len(html_files)}")
     print(f"Parsed patents : {len(patents)}")
     print(f"Unique patents : {len(unique_patents)}")
     print(f"Failures       : {len(failures)}")
     print()
-    print(f"Output         : {OUTPUT_FILE}")
+    print(f"Output         : {output_file}")
     print("=" * 70)
 
 
