@@ -1,3 +1,56 @@
-requests
-beautifulsoup4
-lxml
+# ==========================================
+# CMIH PS02 - Full Stack Requirements
+# ==========================================
+
+# ---------- BACKEND / PYTHON ----------
+fastapi>=0.110.0
+uvicorn[standard]>=0.27.0
+pydantic>=2.6.0
+python-dotenv>=1.0.1
+
+# Database
+supabase>=2.3.0
+
+# Data Analysis
+pandas>=2.2.0
+numpy>=1.26.0
+scikit-learn>=1.4.0
+
+# Web Scraping / Data Collection
+requests>=2.31.0
+beautifulsoup4>=4.12.0
+lxml>=5.1.0
+
+# NLP
+nltk>=3.8.1
+spacy>=3.7.0
+
+# Data/File Processing
+openpyxl>=3.1.2
+python-dateutil>=2.8.2
+tqdm>=4.66.0
+
+
+# ==========================================
+# FRONTEND / NODE.JS
+# ==========================================
+# NOTE:
+# These packages are NOT installed by pip.
+# They belong in package.json / npm.
+#
+# React
+# react
+# react-dom
+#
+# Vite
+# vite
+# @vitejs/plugin-react
+#
+# UI / Icons
+# lucide-react
+#
+# Charts
+# recharts
+#
+# Supabase
+# @supabase/supabase-js
